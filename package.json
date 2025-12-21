@@ -1,0 +1,24 @@
+{
+    "name": "redact-ai-stream",
+    "version": "1.0.0",
+    "description": "Bi-directional PII redaction stream for AI applications",
+    "main": "index.js",
+    "scripts": {
+        "test": "node --test"
+    },
+    "keywords": [
+        "ai",
+        "security",
+        "pii",
+        "redaction",
+        "stream",
+        "llm",
+        "privacy"
+    ],
+    "author": "Godfrey Lebo <emorylebo@gmail.com>",
+    "license": "MIT",
+    "dependencies": {
+        "uuid": "^9.0.0"
+    },
+    "devDependencies": {}
+}
