@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { Readable } = require('stream');
-const RedactionSession = require('../index.js');
+const RedactionSession = require('..');
 
 // Helper to convert stream to string
 async function streamToString(stream) {

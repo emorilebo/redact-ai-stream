@@ -1,16 +1,24 @@
 # redact-ai-stream
 
+![NPM Version](https://img.shields.io/npm/v/redact-ai-stream)
+![License](https://img.shields.io/npm/l/redact-ai-stream)
+![Downloads](https://img.shields.io/npm/dm/redact-ai-stream)
+![TypeScript](https://img.shields.io/badge/types-included-blue)
+
 **Bi-directional PII Redaction for AI Streams**
 
-`redact-ai-stream` is a lightweight Node.js library designed to secure your AI applications by automatically redacting Personally Identifiable Information (PII) from data streams *before* they reach public APIs (like OpenAI, Anthropic, etc.) and restoring the original data in the response stream.
+`redact-ai-stream` is a lightweight, specialized Node.js library designed to secure your AI applications. It acts as a middleware layer, automatically redacting Personally Identifiable Information (PII) from data streams *before* they exit your secure boundary (e.g., to OpenAI, Anthropic), and transparently restoring that data in the incoming response stream.
+
+## Why use this?
+When building RAG requests or chat interfaces, you often need to send user context to an LLM. However, sending raw email addresses, phone numbers, or credit card details violates privacy compliance (GDPR, CCPA) and security best practices. `redact-ai-stream` solves this by tokenizing sensitive data on the fly.
 
 ## Features
 
-*   **Stream-based Redaction**: Works directly with Node.js streams.
-*   **Bi-directional**: Redact on the way out, restore on the way back.
-*   **Session-based**: Keeps track of tokens per session to ensure correct restoration.
-*   **Secure**: Original PII never leaves your server (it is stored in a temporary map).
-*   **Simple API**: Just `.pipe()` it.
+*   **Stream-based Redaction**: Integrates natively with Node.js `Transform` streams.
+*   **Bi-directional**: Redacts outgoing data, restores incoming data.
+*   **Session-based Security**: Tokens are unique per session (`<EMAIL_UUID>`).
+*   **Zero-Persistence**: Original PII is held in memory only for the duration of the stream; never stored on disk.
+*   **TypeScript Support**: Written in TypeScript with full type definitions included.
 
 ## Installation
 
@@ -20,42 +28,54 @@ npm install redact-ai-stream
 
 ## Usage
 
-```javascript
-const RedactionSession = require('redact-ai-stream');
-const { Readable } = require('stream');
+### TypeScript / ES Modules
+
+```typescript
+import RedactionSession from 'redact-ai-stream';
+import { Readable } from 'stream';
 
 // 1. Create a session
 const session = new RedactionSession();
 
-// 2. Simulate user input stream (e.g., from a request)
+// 2. Mock input stream (e.g., from an API request)
 const userInput = Readable.from(["My email is alice@example.com."]);
 
-// 3. Redact the stream
+// 3. Pipe through redaction
 const redactedStream = userInput.pipe(session.redact());
 
 redactedStream.on('data', (chunk) => {
-    console.log('Sending to AI:', chunk.toString());
-    // Output: "Sending to AI: My email is <EMAIL_d41d...>"
+    console.log('To LLM:', chunk.toString());
+    // Output: "To LLM: My email is <EMAIL_1234-5678...>"
 });
 
-// 4. Simulate AI response (which might use the token)
-const aiResponse = Readable.from(["Sure, I will email <EMAIL_d41d...>."]);
+// ... Send to AI ...
 
-// 5. Restore the stream for the user
+// 4. Restore AI response
+const aiResponse = Readable.from(["Sending confirmation to <EMAIL_1234-5678...>."]);
 const finalStream = aiResponse.pipe(session.restore());
 
 finalStream.on('data', (chunk) => {
-    console.log('Sending to User:', chunk.toString());
-    // Output: "Sending to User: Sure, I will email alice@example.com."
+    console.log('To User:', chunk.toString());
+    // Output: "To User: Sending confirmation to alice@example.com."
 });
+```
+
+### CommonJS
+
+```javascript
+const RedactionSession = require('redact-ai-stream');
+// Usage is identical to above
 ```
 
 ## Supported Redactions
 
-*   **Emails**: `user@example.com` -> `<EMAIL_UUID>`
-*   **Credit Cards**: `1234 5678 1234 5678` -> `<CC_UUID>`
-*   **Phone Numbers**: `123-456-7890` -> `<PHONE_UUID>`
+| Type | Pattern Example | Token Format |
+| :--- | :--- | :--- |
+| **Email** | `alice@example.com` | `<EMAIL_UUID>` |
+| **Credit Card** | `4532 1234 5678 9012` | `<CC_UUID>` |
+| **Phone** | `+1-555-0123` | `<PHONE_UUID>` |
 
 ## License
 
-MIT
+MIT © Godfrey Lebo
+
