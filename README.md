@@ -5,11 +5,16 @@
 ![Downloads](https://img.shields.io/npm/dm/redact-ai-stream)
 ![TypeScript](https://img.shields.io/badge/types-included-blue)
 
+![Redact AI Stream Hero](assets/redact_ai_stream_hero_1766409977618.png)
+
 **Bi-directional PII Redaction for AI Streams**
 
 `redact-ai-stream` is a lightweight, specialized Node.js library designed to secure your AI applications. It acts as a middleware layer, automatically redacting Personally Identifiable Information (PII) from data streams *before* they exit your secure boundary (e.g., to OpenAI, Anthropic), and transparently restoring that data in the incoming response stream.
 
+![How It Works](assets/redact_ai_stream_how_it_works_1766409909844.png)
+
 ## Why use this?
+
 When building RAG requests or chat interfaces, you often need to send user context to an LLM. However, sending raw email addresses, phone numbers, or credit card details violates privacy compliance (GDPR, CCPA) and security best practices. `redact-ai-stream` solves this by tokenizing sensitive data on the fly.
 
 ## Features
