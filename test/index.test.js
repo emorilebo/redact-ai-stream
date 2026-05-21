@@ -81,19 +81,8 @@ test('RedactionSession redacts phone numbers', async (t) => {
     assert.match(result, /Call <PHONE_[0-9a-f-]+>/);
 });
 
-test('Multiple chunks handling', async (t) => {
+test('Multiple chunks handling (whitespace-aligned)', async (t) => {
     const session = new RedactionSession();
-    const inputChunks = ["My email ", "is t", "est@exa", "mple.com."];
-    // Note: The simple current implementation fails if the pattern is broken across chunks absolutely cleanly
-    // But since the regex engine matches on the *concatenation* of what it has seen if we buffered properly,
-    // OR, in our simple case, it redacts per chunk.
-    // Wait, our implementation does `text = buffer + chunk.toString()`.
-    // It does NOT hold back text. So "t", "est@exa" -> "test@exa" is not an email.
-    // This test confirms the limitation OR we fix the implementation.
-    // Given the constraints, let's test *sequential* chunks that don't split tokens,
-    // or acknowledge this is a "v1" limitation that streams usually chunk by line or buffer.
-    // Let's test a case where tokens are in separate chunks.
-
     const inputChunksSafe = ["My email is ", "test@example.com", " today."];
     const source = Readable.from(inputChunksSafe);
 
@@ -102,4 +91,64 @@ test('Multiple chunks handling', async (t) => {
 
     assert.doesNotMatch(result, /test@example\.com/);
     assert.match(result, /My email is <EMAIL_[0-9a-f-]+> today\./);
+});
+
+test('PII split mid-pattern across chunks is still redacted (regression)', async (t) => {
+    // This is the bug fixed in v1.3.0: the previous impl never held back the
+    // tail of a chunk, so "te" + "st@example.com" leaked because neither chunk
+    // individually matched the email regex.
+    const session = new RedactionSession();
+    const chunks = ["My email is te", "st@example.com today."];
+    const source = Readable.from(chunks);
+
+    const redactor = session.redact();
+    const result = await streamToString(source.pipe(redactor));
+
+    assert.doesNotMatch(result, /test@example\.com/);
+    assert.match(result, /My email is <EMAIL_[0-9a-f-]+> today\./);
+});
+
+test('PII split into single-character chunks is still redacted', async (t) => {
+    const session = new RedactionSession();
+    const full = "Email: a.b+c@example.co.uk done.";
+    const chunks = Array.from(full); // 1 char per chunk
+    const source = Readable.from(chunks);
+
+    const redactor = session.redact();
+    const result = await streamToString(source.pipe(redactor));
+
+    assert.doesNotMatch(result, /a\.b\+c@example\.co\.uk/);
+    assert.match(result, /Email: <EMAIL_[0-9a-f-]+> done\./);
+});
+
+test('Credit card split across chunks is still redacted', async (t) => {
+    const session = new RedactionSession();
+    const chunks = ["Card: 4532 1234 ", "5678 9012 end."];
+    const source = Readable.from(chunks);
+
+    const redactor = session.redact();
+    const result = await streamToString(source.pipe(redactor));
+
+    assert.doesNotMatch(result, /4532 1234 5678 9012/);
+    assert.match(result, /Card: <CC_[0-9a-f-]+> end\./);
+});
+
+test('Round-trip restore works across chunk-split PII', async (t) => {
+    const session = new RedactionSession();
+    const original = "Hi alice@example.com please call 555-123-4567 today.";
+    // split mid-email and mid-phone
+    const chunks = ["Hi alic", "e@example.com please call 555-12", "3-4567 today."];
+
+    const source = Readable.from(chunks);
+    const redacted = await streamToString(source.pipe(session.redact()));
+
+    // PII must be gone from the redacted stream
+    assert.doesNotMatch(redacted, /alice@example\.com/);
+    assert.doesNotMatch(redacted, /555-123-4567/);
+
+    // Restoring must reconstruct the original
+    const restored = await streamToString(
+        Readable.from([redacted]).pipe(session.restore())
+    );
+    assert.strictEqual(restored, original);
 });
